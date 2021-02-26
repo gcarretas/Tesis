@@ -1,0 +1,181 @@
+MODULE ESTRUCTURAMEZCLA
+  USE VARIABLES
+  IMPLICIT NONE
+  CONTAINS
+
+  SUBROUTINE CKBAAXTER(K,NK,CKBA)
+    USE VARIABLES
+    IMPLICIT NONE
+
+    INTEGER :: I,J,NK
+    REAL(8)                    :: K, RHOSIGMA1, RHOSIGMA2, RHOSIGMA3, XI1, XI2, XI3
+    REAL(8), DIMENSION(NP)     :: A, B
+    COMPLEX, DIMENSION(NP,NP)  :: Q, QT
+    REAL(8), DIMENSION (NP,NP,NKMAX) :: CKBA
+
+    RHOSIGMA3=0.0D0
+    RHOSIGMA2=0.0D0
+    RHOSIGMA1=0.0D0
+
+    DO I=1,NP
+      RHOSIGMA3= RHOSIGMA3 + RHO(I)*SIGMA(I)**3
+      RHOSIGMA2= RHOSIGMA2 + RHO(I)*SIGMA(I)**2
+      RHOSIGMA1= RHOSIGMA1 + RHO(I)*SIGMA(I)
+    END DO
+
+    XI3=(PI/6.0)*RHOSIGMA3
+    XI2=(PI/6.0)*RHOSIGMA2
+    XI1=(PI/6.0)*RHOSIGMA1
+
+    DO I=1,NP
+      A(I)= (1.0D0-XI3 + 3.0D0*SIGMA(I)*XI2)/((1.0D0-XI3)**2)
+      B(I)= -(3.0D0*(SIGMA(I)**2)*XI2)/(2.0D0*(1.0D0-XI3)**2)
+    END DO
+
+    !  SE OBTIENEN LAS MATRICES DE BAXTER
+    DO I=1,NP
+      DO J =1,NP
+        Q(I,J)=KRONEKER(I,J)-(PI*EXP((0.D0,0.5D0)*K*(SIGMA(I)-SIGMA(J)))*SQRT(RHO(I)*RHO(J))*&
+        (2.D0*K*B(I)*(-1.D0+EXP((0.D0,1.D0)*K*SIGMA(J))-&
+        (0.D0,1.D0)*K*SIGMA(J))+A(I)*((0.D0,-2.D0)-K*SIGMA(I)+K*SIGMA(J)-&
+        (0.D0,1.D0)*K**2*SIGMA(I)*SIGMA(J)+ EXP((0.D0,1.D0)*K*SIGMA(J))*&
+        ((0.D0,2.D0)+K*(SIGMA(I)+SIGMA(J))))))/K**3
+
+        QT(I,J) = KRONEKER(I,J)-(PI*EXP((0.D0,-0.5D0)*K*(SIGMA(I)+SIGMA(J)))*SQRT(RHO(I)*RHO(J))*&
+        (2.D0*K*B(J)+A(J)*((0.D0,-2.D0)+K*(SIGMA(I)+SIGMA(J)))+&
+        EXP((0.D0,1.D0)*K*SIGMA(I))*((0.D0,2.D0)*K*B(J)*((0.D0,1.D0)+K*SIGMA(I))+A(J)*&
+        ((0.D0,2.D0)-K*SIGMA(J)+K*SIGMA(I)* (1.D0+(0.D0,1.D0)*K*SIGMA(J))))))/K**3
+      END DO
+    END DO
+
+    CKBA(:,:,NK)=KRONEKER-MATMUL(QT,Q)
+
+    RETURN
+  END SUBROUTINE CKBAAXTER
+
+  REAL FUNCTION XX(I,GAMMA)
+    USE VARIABLES
+    IMPLICIT NONE
+    REAL(8) :: GAMMA, X2, X3, X4
+    INTEGER :: I,J
+
+    X2=0.0D0
+    DO J=1,NP
+        X2 = X2 + RHO(J)*SIGMA(J)*Z(J)/(1.0D0 + GAMMA*SIGMA(J))
+    END DO
+
+    X3=0.0D0
+    DO J=1,NP
+        X3 = X3 + RHO(J)*(SIGMA(J)**3.0D0)/(1.0D0 + GAMMA*SIGMA(J))
+    END DO
+
+    X4 = (Z(I)/(1.0D0+ GAMMA*SIGMA(I))) - (P*(SIGMA(I)**2.0D0)/(1.0D0+ GAMMA*SIGMA(I)))*(X2/(1.0D0 + P*X3))
+    XX=X4
+
+  END FUNCTION XX
+
+  REAL FUNCTION F(GAMMA)
+    USE VARIABLES
+    IMPLICIT NONE
+    REAL(8)  :: D, GAMMA
+    INTEGER :: J
+
+    D=0.0D0
+    DO J=1,NP
+        D = D + RHO(J)*(XX(J,GAMMA)**2.0D0)
+    END DO
+
+    F =  (GAMMA**2.0D0) - PI*BETA*D
+
+  END FUNCTION F
+
+  REAL FUNCTION N(I)
+    USE VARIABLES
+    IMPLICIT NONE
+    INTEGER :: I
+
+    N=(XX(I,GAMMAG)-Z(I))/SIGMA(I)
+  END FUNCTION N
+
+  REAL FUNCTION CKELEC(K,I,J)
+    USE VARIABLES
+    IMPLICIT NONE
+    INTEGER :: I,J
+    REAL(8) :: SUMA, RESTA
+    REAL(8) :: C1, C2, C3, C4, C5, C6, K
+    REAL(8) :: D1, D2, D3, D4, D5, D6, C
+
+    SUMA=(SIGMA(I)+SIGMA(J))/2.0D0
+    RESTA=((SIGMA(J)-SIGMA(I)))/2.0D0
+
+    C1 = -2*(-Z(I)*N(J) + XX(I,GAMMAG)*(N(I) + GAMMAG*XX(I,GAMMAG)) - (SIGMA(I)/3.0D0)*((N(I) +&
+          GAMMAG*XX(I,GAMMAG))**2))
+    C2 = (SIGMA(I)-SIGMA(J))*(((XX(I,GAMMAG) + XX(J,GAMMAG))/4.0D0)*(N(I) + GAMMAG*(XX(I,GAMMAG)-XX(J,GAMMAG))-&
+         N(J)) - ((SIGMA(I)-SIGMA(J))/16.0D0)*((N(I) + GAMMAG*(XX(I,GAMMAG)+XX(J,GAMMAG)) + N(J))**2.0D0 -&
+          4.0D0*N(I)*N(J)))
+    C3 = -((XX(I,GAMMAG)-XX(J,GAMMAG))*(N(I)-N(J)) + (XX(I,GAMMAG)**2.0D0 + XX(J,GAMMAG)**2.0D0)*GAMMAG +&
+         (SIGMA(I) + SIGMA(J))*N(I)*N(J) -(1.0D0/3.0D0)*(SIGMA(I)*(N(I) + GAMMAG*XX(I,GAMMAG))**2.0D0 +&
+          SIGMA(J)*(N(J) + GAMMAG*XX(J,GAMMAG))**2.0D0))
+    C4 = ((XX(I,GAMMAG)/SIGMA(I))*(N(I) + GAMMAG*XX(I,GAMMAG)) + (XX(J,GAMMAG)/SIGMA(J))*(N(J) + GAMMAG*XX(J,GAMMAG)) +&
+         N(I)*N(J) -(1.0D0/2.0D0)*((N(I) + GAMMAG*XX(I,GAMMAG))**2.0D0 + (N(J) + GAMMAG*XX(J,GAMMAG))**2.0D0))
+    C5 = ((1.0D0/(6.0D0*SIGMA(I)**2.0D0))*(N(I) + GAMMAG*XX(I,GAMMAG))**2.0D0 + (1.0D0/(6.0D0*SIGMA(J)**2.0D0))*&
+        (N(J) + GAMMAG*XX(J,GAMMAG))**2.0D0)
+    C6 = -Z(I)*Z(J)
+
+    D1 = (SIN(K*RESTA)-K*RESTA*COS(K*RESTA))/(K**2)
+    D2 = (COS(K*RESTA) - COS(K*SUMA))/K
+    D3 = (SIN(K*SUMA)-K*SUMA*COS(K*SUMA) - SIN(K*RESTA) +K*RESTA*COS(K*RESTA))/(K**2.0D0)
+    D4 = ((2.0D0 - (K**2.0D0)*(SUMA**2.0D0))*COS(K*SUMA) + 2.0D0*K*SUMA*SIN(K*SUMA) -(2.0D0 - (K**2.0D0)*(RESTA**2.0D0))*&
+         COS(K*RESTA)-2.0D0*K*RESTA*SIN(K*RESTA))/(K**3.0D0)
+    D5 = (4.0D0*K*SUMA*((K**2.0D0)*(SUMA**2.0D0)-6.0D0)*SIN(K*SUMA) - ((K**4.0D0)*(SUMA**4.0D0) - 12.0D0*(K**2.0D0)*&
+         (SUMA**2.0D0) + 24.0D0)*COS(K*SUMA) - 4.0D0*K*RESTA*((K**2.0D0)*(RESTA**2.0D0)-6.0D0)*SIN(K*RESTA) +&
+         ((K**4.0D0)*(RESTA**4.0D0) - 12.0D0*(K**2.0D0)*(RESTA**2.0D0) + 24.0D0)*COS(K*RESTA))/(K**5.0D0)
+    D6 = COS(K*SUMA)/K
+
+    C=SQRT(RHO(I)*RHO(J))*(4.0D0*PI*BETA/K)*(C1*D1 + C2*D2 + C3*D3 + C4*D4 + C5*D5 + C6*D6)
+
+    CKELEC=C
+  END FUNCTION CKELEC
+
+  SUBROUTINE CKHIROIKE(K,NK,CKHI)
+    USE VARIABLES
+    IMPLICIT NONE
+
+    REAL(8)                    :: K
+    REAL(8), DIMENSION (NP,NP,NKMAX) :: CKHI
+    INTEGER                    :: I,J,NK
+    REAL(8) :: am, bm, tol
+    INTEGER :: nn, clave
+
+    GAMMAG=0.0D0
+    am = 0.0D0
+    bm = 100.0D0
+    tol = 0.5E-6
+    nn = 100
+    CALL biseccion(F,am,bm,nn,tol,GAMMAG,clave)
+
+    DO I=1,NP
+      DO J=1,NP
+        CKHI(I,J,NK)=CKELEC(K,I,J)
+      END DO
+    END DO
+
+  RETURN
+  END SUBROUTINE CKHIROIKE
+
+  SUBROUTINE CKTOTAL(K,NK,CKT)
+    USE VARIABLES
+    IMPLICIT NONE
+
+    INTEGER :: NK
+    REAL(8)                    :: K
+    REAL(8), DIMENSION (NP,NP,NKMAX) :: CKT
+
+    CALL CKBAAXTER(K,NK,CKB)
+    CALL CKHIROIKE(K,NK,CKH)
+
+    CKT(:,:,NK)=CKB(:,:,NK)+CKH(:,:,NK)
+
+  END SUBROUTINE CKTOTAL
+
+END MODULE

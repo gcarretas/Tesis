@@ -1,0 +1,5 @@
+gfortran VARIABLES.F90 -c
+gfortran ESTRUCTURAMEZCLA.F90 -c
+gfortran ARRESTODINAMICO.F90 -c
+gfortran MSAMezclas.f90 ESTRUCTURAMEZCLA.o ARRESTODINAMICO.o INVERSION.o roots.o VARIABLES.o -o a.exe
+a.exe

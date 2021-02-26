@@ -1,0 +1,88 @@
+!Programa para calcular el  factor de estructura de una mezcla
+!de esferas duras cargadas utilizando MSA
+
+!Iniciando el programa
+
+!Parámetros globales
+PROGRAM MSAMezclas
+  USE VARIABLES
+  USE ESTRUCTURAMEZCLA
+  USE ARRESTODINAMICO
+  IMPLICIT NONE
+
+  REAL(8) :: PHI, T, KI, K, RHOFACTOR, SIG3, SIGIJ, Z12
+  INTEGER :: I, J, NK
+  INTEGER, DIMENSION (NP) :: FLAG
+  !.................................................................................
+  ! VALOR INICIAL KI DEL VECTOR DE ONDA, ASI COMO SU DIFERENCIAL DK.
+  KI=0.01D0
+  DK=0.01D0
+
+  PHI=0.56D0
+  TEMP=100.0D0
+
+  SIGMA(1)=1.0D0
+  SIGMA(2)=1.0D0
+  Z(1)=1.0D0
+  Z(2)=-1.0D0
+
+  SIG3=(SIGMA(2)/SIGMA(1))**3.0D0
+  ZD=Z(1)/Z(2)
+  PRINT*, ZD
+
+  RHOFACTOR=(6.0D0*PHI)/((PI*(SIGMA(1)**3.0D0))*(1.0D0-ZD*SIG3))
+  RHO(1)=RHOFACTOR
+  RHO(2)=-RHO(1)*ZD
+
+  SIGIJ=(SIGMA(1)+SIGMA(2))/2.0D0
+  Z12=ABS(Z(1)*Z(2))
+  !!!!STEMP=(T*E**2)/(EPS*KB)
+  BETA=SIGIJ/(Z12*TEMP)
+
+  KMIN=(2.0D0*PI*FACTOR)/SIGMA(1)
+
+  ! SE DEFINE LA DELTA DE KRONEKER
+  DO I=1,NP
+    DO J=1,NP
+      IF (I .EQ. J) THEN
+      KRONEKER(I,J)=1.0D0
+      ELSE
+      KRONEKER(I,J)=0.0D0
+      END IF
+    END DO
+  END DO
+
+  DO I=1,NP
+      CS = CS + RHO(I)*(SIGMA(I)**3)
+  END DO
+
+  P = (PI/2.0D0)/(1.0D0-(PI/6.0D0)*CS)
+
+  !CALCULO DEL FACTOR DE ESTRUCTURA
+  OPEN(9, file='SK.dat')
+
+  DO NK=1,NKMAX
+    K = KI + (NK-1)*DK
+    KV1(NK)=K
+
+    CALL CKTOTAL(K,NK,CK)
+
+    ! SKI(:,:,NK) ES EL INVERSO DEL FACTOR DE ESTRUCTURA
+    SKI(:,:,NK)=KRONEKER-CK(:,:,NK)
+
+    CALL INVERSION(SKI(:,:,NK),SK(:,:,NK),NP)
+    !  DE INVERSION RESULTA: S(:,:,NK) "EL FACTOR DE ESTRUCTURA"
+    !  EN EL ARCHIVO 9 SE MANDAN A ESCRIBIR LOS DIFERENTES SK(K)
+    WRITE(9,*) SNGL(K), SNGL(SK(1,1,NK)), SNGL(SK(1,2,NK)), SNGL(SK(2,1,NK)), SNGL(SK(2,2,NK))
+
+  END DO
+
+  CLOSE(9)
+
+  FLAG=0.0D0
+  !ARRESTO DINAMICO
+  CALL CRITERIOARRESTO
+
+!fin del programa
+
+END PROGRAM MSAMezclas
